@@ -1,13 +1,15 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go # Added for advanced combo charts
+import plotly.graph_objects as go
 from datetime import datetime
 import os
 import time
+import pdfplumber
+import re
 
 # --- 1. CONFIGURATION ---
-st.set_page_config(page_title=" Empire Finance", layout="wide", page_icon="🏢")
+st.set_page_config(page_title="Glafit Empire Finance", layout="wide", page_icon="🏢")
 
 FILE = 'Finance_Ledger.xlsx'
 VAULT_FOLDER = 'Master_Vault'
@@ -15,13 +17,50 @@ VAULT_FOLDER = 'Master_Vault'
 if not os.path.exists(VAULT_FOLDER):
     os.makedirs(VAULT_FOLDER)
 
-try:
-    from ingest import parse_invoice
-except ImportError:
-    st.error("❌ Could not find 'ingest.py'. Make sure it is in the same folder!")
-    st.stop()
+# --- 2. EMBEDDED PARSER (No need for ingest.py) ---
+def parse_invoice(file_path):
+    """
+    Reads a PDF and extracts Invoice No, Date, Amount, and Project.
+    Embedded directly here to avoid ImportErrors.
+    """
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            text = ""
+            for page in pdf.pages:
+                text += page.extract_text() or ""
+        
+        # Simple Regex Logic (Adjust as needed)
+        # 1. Invoice Number (Looks for INV-...)
+        inv_match = re.search(r'(INV-\d{4}-\d{3}|INV-\w+-\d+)', text)
+        invoice_no = inv_match.group(0) if inv_match else f"INV-{int(time.time())}"
+        
+        # 2. Amount (Looks for $ or numbers with decimals)
+        amt_match = re.search(r'\$\s?([\d,]+\.\d{2})', text)
+        if amt_match:
+            amount = float(amt_match.group(1).replace(',', ''))
+        else:
+            # Fallback: look for largest number
+            nums = re.findall(r'([\d,]+\.\d{2})', text)
+            amount = float(max(nums).replace(',', '')) if nums else 0.0
+            
+        # 3. Date
+        date_match = re.search(r'(\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4})', text)
+        inv_date = pd.to_datetime(date_match.group(0)) if date_match else datetime.today()
 
-# --- 2. DATA HELPER FUNCTIONS ---
+        # 4. Project Name (Heuristic)
+        project = "General Project"
+        lines = text.split('\n')
+        for line in lines[:10]: # Check first 10 lines
+            if "Project:" in line:
+                project = line.replace("Project:", "").strip()
+                break
+                
+        return invoice_no, inv_date, amount, project
+
+    except Exception as e:
+        return "MANUAL_CHECK", datetime.today(), 0.0, "Manual Entry"
+
+# --- 3. DATA HELPER FUNCTIONS ---
 
 def ensure_columns_exist(df, required_cols):
     for col in required_cols:
@@ -233,7 +272,7 @@ if not filtered_inv.empty:
         ledger_rows.append({
             'Date': inv['Date'],
             'Description': f"🟦 INVOICE: {inv['Invoice_No']} ({inv['Project_Name']})",
-            'Project': inv['Project_Name'], # Track Project for Graphs
+            'Project': inv['Project_Name'], 
             'Debit': inv_amount, 'Credit': 0.0, 'Balance': cumulative_balance,
             'Link_Path': inv_link, 'Type': 'Invoice'
         })
@@ -256,7 +295,7 @@ if not filtered_inv.empty:
                 ledger_rows.append({
                     'Date': pay['Date'], 
                     'Description': f"   ↘ 🟩 Payment (Entry: {entry_str})",
-                    'Project': inv['Project_Name'], # Associate payment with project
+                    'Project': inv['Project_Name'], 
                     'Debit': 0.0, 'Credit': pay_amount, 'Balance': cumulative_balance,
                     'Link_Path': pay_link, 'Type': 'Payment'
                 })
@@ -304,7 +343,6 @@ k4.metric("Collection Rate", f"{collection_rate:.1f}%")
 st.divider()
 
 if not metrics_df.empty:
-    # --- ROW 2: VELOCITY & STATUS ---
     c1, c2 = st.columns([2, 1])
     
     with c1:
@@ -318,7 +356,6 @@ if not metrics_df.empty:
         chart_data['Cumulative Collected'] = chart_data['Cumulative Collected'].ffill().fillna(0)
         chart_data = chart_data.reset_index()
 
-        # Changed to AREA CHART for "Volume" feel
         fig_trend = px.area(chart_data, x='Date', y=['Cumulative Billed', 'Cumulative Collected'], 
                             title="Accumulated Revenue & Collections",
                             color_discrete_map={'Cumulative Billed': '#EF553B', 'Cumulative Collected': '#00CC96'})
@@ -339,7 +376,6 @@ if not metrics_df.empty:
         fig_pie.update_layout(annotations=[dict(text=center_text, x=0.5, y=0.5, font_size=20, showarrow=False)])
         st.plotly_chart(fig_pie, use_container_width=True)
 
-    # --- ROW 3: CASH FLOW & PROJECTS ---
     c3, c4 = st.columns([2, 1])
 
     with c3:
@@ -347,23 +383,17 @@ if not metrics_df.empty:
         cf_df = metrics_df.copy()
         cf_df['Month'] = cf_df['Date'].dt.strftime('%Y-%m')
         
-        # Calculate Monthly Totals
         monthly = cf_df.groupby(['Month', 'Type'])[['Debit', 'Credit']].sum().reset_index()
         monthly['Amount'] = monthly.apply(lambda x: x['Debit'] if x['Type'] == 'Invoice' else x['Credit'], axis=1)
         monthly['Category'] = monthly['Type'].map({'Invoice': 'Invoiced', 'Payment': 'Collected'})
         
-        # Calculate Net Flow (Overlay Line)
         net_flow = cf_df.groupby('Month').apply(lambda x: x[x['Type']=='Payment']['Credit'].sum() - x[x['Type']=='Invoice']['Debit'].sum()).reset_index(name='Net Cash Flow')
 
-        # Create Combo Chart
         fig_combo = go.Figure()
-        
-        # Bars
         for cat, color in [('Invoiced', '#EF553B'), ('Collected', '#00CC96')]:
             subset = monthly[monthly['Category'] == cat]
             fig_combo.add_trace(go.Bar(x=subset['Month'], y=subset['Amount'], name=cat, marker_color=color))
         
-        # Line (Net Flow)
         fig_combo.add_trace(go.Scatter(x=net_flow['Month'], y=net_flow['Net Cash Flow'], mode='lines+markers', 
                                        name='Net Monthly Cash', line=dict(color='blue', width=3)))
         
@@ -372,9 +402,8 @@ if not metrics_df.empty:
 
     with c4:
         st.subheader("🏆 Top Projects")
-        # Extract Projects from metrics
         proj_df = metrics_df[metrics_df['Type'] == 'Invoice'].groupby('Project')['Debit'].sum().reset_index()
-        proj_df = proj_df.sort_values(by='Debit', ascending=True).tail(5) # Top 5
+        proj_df = proj_df.sort_values(by='Debit', ascending=True).tail(5) 
         
         fig_proj = px.bar(proj_df, x='Debit', y='Project', orientation='h', 
                           title="Top Revenue Drivers", text_auto='.2s',
@@ -541,5 +570,4 @@ with tab3:
         st.caption("ℹ️ Color Legend: 🟨 Invoice | 🟩 Payment | 🟥 Outstanding Balance | 🟢 Fully Paid")
         st.caption("ℹ️ Backup Note: A full backup of this view is automatically saved to the 'Master_Ledger' sheet in your Excel file.")
     else:
-
         st.info("No transactions found.")
