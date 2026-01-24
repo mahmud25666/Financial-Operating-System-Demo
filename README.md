@@ -53,3 +53,11 @@ I built this **Financial Operating System (FOS)** as a modular, Python-native en
 3. **Run the Application**
    streamlit run app.py
    
+🔮 Future Roadmap (DePIN Integration)
+This FOS is the foundational layer for a larger DePIN Architecture. Upcoming modules include:
+
+Phase 2: IoT Sensor Integration (Ingesting live telemetry from EV chargers).
+
+Phase 3: On-Chain Settlements (Triggering USDC payments based on hardware uptime).
+
+Phase 4: Geospatial Fleet Map (QGIS integration for node visualization).
