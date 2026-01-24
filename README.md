@@ -13,7 +13,7 @@ Legacy ERP systems are often too rigid for the rapid deployment cycles of decent
 
 I built this **Financial Operating System (FOS)** as a modular, Python-native engine to bridge the gap between **physical engineering milestones** and **financial ledgering**. It is designed to manage high-velocity capital allocation for hardware procurement, installation, and maintenance.
 
-**Live Demo:** [Click Here to Launch App](YOUR_STREAMLIT_APP_LINK_HERE)
+**Live Demo:** [Click Here to Launch App](https://financial-operating-system-demo-ysdocfpbevor9xhd93xzn4.streamlit.app/)
 
 ---
 
