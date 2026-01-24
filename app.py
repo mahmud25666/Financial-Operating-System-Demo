@@ -7,7 +7,7 @@ import os
 import time
 
 # --- 1. CONFIGURATION ---
-st.set_page_config(page_title="Glafit Empire Finance", layout="wide", page_icon="🏢")
+st.set_page_config(page_title=" Empire Finance", layout="wide", page_icon="🏢")
 
 FILE = 'Finance_Ledger.xlsx'
 VAULT_FOLDER = 'Master_Vault'
@@ -541,4 +541,5 @@ with tab3:
         st.caption("ℹ️ Color Legend: 🟨 Invoice | 🟩 Payment | 🟥 Outstanding Balance | 🟢 Fully Paid")
         st.caption("ℹ️ Backup Note: A full backup of this view is automatically saved to the 'Master_Ledger' sheet in your Excel file.")
     else:
+
         st.info("No transactions found.")
