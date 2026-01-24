@@ -3,7 +3,7 @@
 
 ### Automating Capital Flow for Engineering Fleets & Real-World Assets (RWA)
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](financial-operating-system-demo-ysdocfpbevor9xhd93xzn4.streamlit.app)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://financial-operating-system-demo-ysdocfpbevor9xhd93xzn4.streamlit.app/)
 ![Python](https://img.shields.io/badge/Python-3.12-blue) ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
